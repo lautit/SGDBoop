@@ -341,26 +341,21 @@ char* downloadAssetFile(char* app_id, char* url, char* type, char* orientation, 
 		}
 	}
 
-	// Always save as jpg if icon and replacing default Steam
-	if (appData == NULL && strcmp(type, "icon") == 0) {
-		strcat(outfilename, ".jpg");
-	} else {
-		// Save as original file extension
-		const char* dot = strrchr(url, '.');
-		if (dot) {
-			char ext[16] = { 0 };
-			strncpy(ext, dot, sizeof(ext) - 1);
-			char* qmark = strchr(ext, '?');
-			if (qmark) *qmark = '\0'; // cut at '?'
+	// Save as original file extension
+	const char* dot = strrchr(url, '.');
+	if (dot) {
+		char ext[16] = { 0 };
+		strncpy(ext, dot, sizeof(ext) - 1);
+		char* qmark = strchr(ext, '?');
+		if (qmark) *qmark = '\0'; // cut at '?'
 
-			// Don't use webp extensions
-			if (strcmp(ext, ".webp") == 0) {
-				strcpy(ext, ".png");
-			}
-			strcat(outfilename, ext);
-		} else {
-			strcat(outfilename, ".jpg"); // fallback
+		// Don't use webp extensions
+		if (strcmp(ext, ".webp") == 0) {
+			strcpy(ext, ".png");
 		}
+		strcat(outfilename, ext);
+	} else {
+		strcat(outfilename, ".jpg"); // fallback
 	}
 
 

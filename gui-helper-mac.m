@@ -6,10 +6,59 @@
 #include <string.h>
 #include <Cocoa/Cocoa.h>
 #include <CoreServices/CoreServices.h>
+#include <ImageIO/ImageIO.h>
 
 static NSString *NSStringFromCString(const char *str)
 {
     return [NSString stringWithUTF8String:(str != NULL) ? str : ""];
+}
+
+// Decode an .ico via ImageIO, keep only its largest frame, re-encode as a real .png
+int convertIcoToPng(const char *icoPath, const char *pngPath)
+{
+    NSURL *srcURL = [NSURL fileURLWithPath:NSStringFromCString(icoPath)];
+    CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)srcURL, NULL);
+    if (!source) {
+        return 0;
+    }
+
+    size_t count = CGImageSourceGetCount(source);
+    CGImageRef best = NULL;
+    size_t bestArea = 0;
+    for (size_t i = 0; i < count; i++) {
+        CGImageRef frame = CGImageSourceCreateImageAtIndex(source, i, NULL);
+        if (!frame) {
+            continue;
+        }
+        size_t area = CGImageGetWidth(frame) * CGImageGetHeight(frame);
+        if (area > bestArea) {
+            if (best) CGImageRelease(best);
+            best = frame;
+            bestArea = area;
+        } else {
+            CGImageRelease(frame);
+        }
+    }
+    CFRelease(source);
+
+    if (!best) {
+        return 0;
+    }
+
+    NSURL *dstURL = [NSURL fileURLWithPath:NSStringFromCString(pngPath)];
+    CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)dstURL, CFSTR("public.png"), 1, NULL);
+    if (!dest) {
+        CGImageRelease(best);
+        return 0;
+    }
+
+    CGImageDestinationAddImage(dest, best, NULL);
+    bool ok = CGImageDestinationFinalize(dest);
+
+    CFRelease(dest);
+    CGImageRelease(best);
+
+    return ok ? 1 : 0;
 }
 
 // https://developer.apple.com/documentation/appkit/nsalert?language=objc

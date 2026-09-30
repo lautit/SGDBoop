@@ -391,6 +391,23 @@ char* downloadAssetFile(char* app_id, char* url, char* type, char* orientation, 
 		// Rename the file to trigger a refresh on the client
 		if (!rename(outfilename_temp, outfilename)) {
 			free(outfilename_temp);
+
+			// Keep a real .png conversion alongside the .ico, not all Steam-side icon loaders read .ico
+			const char* ext = strrchr(outfilename, '.');
+			if (ext && strcmp_i(ext, ".ico") == 0) {
+				char* pngPath = malloc(MAX_PATH);
+				size_t baseLen = ext - outfilename;
+				strncpy(pngPath, outfilename, baseLen);
+				pngPath[baseLen] = '\0';
+				strcat(pngPath, ".png");
+
+				if (DEBUG) logMessage("Converting downloaded .ico to .png", 0);
+				if (!convertIcoToPng(outfilename, pngPath)) {
+					if (DEBUG) logMessage("Failed to convert .ico to .png", 0);
+				}
+				free(pngPath);
+			}
+
 			return outfilename;
 		}
 	}
@@ -1831,7 +1848,8 @@ int main(int argc, char** argv)
 			}
 
 			// Non-Steam specific actions
-			if (appData) {
+			// "steam-app" has no shortcuts.vdf entry (index isn't a vdf block position), skip it here
+			if (appData && strcmp(appData->type, "steam-app") != 0) {
 				// If the asset is a non-Steam icon, add the path to the vdf
 				if (strcmp(asset_type, "icon") == 0) {
 					if (DEBUG) logMessage("Running updateVdf", 0);

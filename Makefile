@@ -34,7 +34,7 @@ build-darwin:
 	cp res/mac/Info.plist SGDBoop.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" SGDBoop.app/Contents/Info.plist
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(VERSION)" SGDBoop.app/Contents/Info.plist
-	$(CC) -Wno-pointer-sign -fobjc-arc -arch arm64 -arch x86_64 -g sgdboop.c curl-helper.c gui-helper-mac.m string-helpers.c crc.c $(shell $(PKG_CONFIG) --cflags --libs libcurl) -framework Cocoa -o SGDBoop.app/Contents/MacOS/SGDBoop $(LDFLAGS)
+	$(CC) -Wno-pointer-sign -fobjc-arc -arch arm64 -arch x86_64 -g sgdboop.c curl-helper.c gui-helper-mac.m string-helpers.c crc.c $(shell $(PKG_CONFIG) --cflags --libs libcurl) -framework Cocoa -framework ImageIO -o SGDBoop.app/Contents/MacOS/SGDBoop $(LDFLAGS)
 	chmod +x SGDBoop.app/Contents/MacOS/SGDBoop
 
 .PHONY: install install-linux install-flatpak

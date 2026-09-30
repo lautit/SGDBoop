@@ -1,5 +1,27 @@
 #include "gui-helper.h"
 #include <gtk/gtk.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
+
+int convertIcoToPng(const char* icoPath, const char* pngPath)
+{
+	GError* error = NULL;
+
+	// gdk-pixbuf's .ico loader picks the largest frame in the file
+	GdkPixbuf* pixbuf = gdk_pixbuf_new_from_file(icoPath, &error);
+	if (pixbuf == NULL) {
+		if (error) g_error_free(error);
+		return 0;
+	}
+
+	gboolean saved = gdk_pixbuf_save(pixbuf, pngPath, "png", &error, NULL);
+	g_object_unref(pixbuf);
+	if (!saved) {
+		if (error) g_error_free(error);
+		return 0;
+	}
+
+	return 1;
+}
 
 int ShowMessageBox(const char* title, const char* message)
 {

@@ -1,8 +1,114 @@
 #include <windows.h>
 #include <CommCtrl.h>
+#include <wincodec.h>
 
 #include "gui-helper.h"
 #include "resource.h"
+
+// Decode an .ico via WIC, keep only its largest frame, re-encode as a real .png
+// Needs windowscodecs.lib, ole32.lib linked.
+int convertIcoToPng(const char* icoPath, const char* pngPath)
+{
+	int result = 0;
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+	BOOL comInitialized = SUCCEEDED(hr);
+	if (hr != RPC_E_CHANGED_MODE && FAILED(hr)) {
+		return 0;
+	}
+
+	IWICImagingFactory* factory = NULL;
+	IWICBitmapDecoder* decoder = NULL;
+	IWICBitmapFrameDecode* bestFrame = NULL;
+	IWICBitmapSource* converted = NULL;
+	IWICStream* stream = NULL;
+	IWICBitmapEncoder* encoder = NULL;
+	IWICBitmapFrameEncode* frameEncode = NULL;
+	WCHAR wIcoPath[MAX_PATH];
+	WCHAR wPngPath[MAX_PATH];
+
+	MultiByteToWideChar(CP_UTF8, 0, icoPath, -1, wIcoPath, MAX_PATH);
+	MultiByteToWideChar(CP_UTF8, 0, pngPath, -1, wPngPath, MAX_PATH);
+
+	hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory, (void**)&factory);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = factory->lpVtbl->CreateDecoderFromFilename(factory, wIcoPath, NULL, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder);
+	if (FAILED(hr)) goto cleanup;
+
+	UINT frameCount = 0;
+	hr = decoder->lpVtbl->GetFrameCount(decoder, &frameCount);
+	if (FAILED(hr) || frameCount == 0) goto cleanup;
+
+	UINT bestArea = 0;
+	for (UINT i = 0; i < frameCount; i++) {
+		IWICBitmapFrameDecode* frame = NULL;
+		if (FAILED(decoder->lpVtbl->GetFrame(decoder, i, &frame))) continue;
+
+		UINT w = 0, h = 0;
+		frame->lpVtbl->GetSize(frame, &w, &h);
+		if (w * h > bestArea) {
+			if (bestFrame) bestFrame->lpVtbl->Release(bestFrame);
+			bestFrame = frame;
+			bestArea = w * h;
+		} else {
+			frame->lpVtbl->Release(frame);
+		}
+	}
+	if (!bestFrame) goto cleanup;
+
+	hr = WICConvertBitmapSource(&GUID_WICPixelFormat32bppBGRA, (IWICBitmapSource*)bestFrame, &converted);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = factory->lpVtbl->CreateStream(factory, &stream);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = stream->lpVtbl->InitializeFromFilename(stream, wPngPath, GENERIC_WRITE);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = factory->lpVtbl->CreateEncoder(factory, &GUID_ContainerFormatPng, NULL, &encoder);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = encoder->lpVtbl->Initialize(encoder, (IStream*)stream, WICBitmapEncoderNoCache);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = encoder->lpVtbl->CreateNewFrame(encoder, &frameEncode, NULL);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = frameEncode->lpVtbl->Initialize(frameEncode, NULL);
+	if (FAILED(hr)) goto cleanup;
+
+	UINT convW = 0, convH = 0;
+	converted->lpVtbl->GetSize(converted, &convW, &convH);
+	hr = frameEncode->lpVtbl->SetSize(frameEncode, convW, convH);
+	if (FAILED(hr)) goto cleanup;
+
+	WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+	hr = frameEncode->lpVtbl->SetPixelFormat(frameEncode, &format);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = frameEncode->lpVtbl->WriteSource(frameEncode, converted, NULL);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = frameEncode->lpVtbl->Commit(frameEncode);
+	if (FAILED(hr)) goto cleanup;
+
+	hr = encoder->lpVtbl->Commit(encoder);
+	if (FAILED(hr)) goto cleanup;
+
+	result = 1;
+
+cleanup:
+	if (frameEncode) frameEncode->lpVtbl->Release(frameEncode);
+	if (encoder) encoder->lpVtbl->Release(encoder);
+	if (stream) stream->lpVtbl->Release(stream);
+	if (converted) converted->lpVtbl->Release(converted);
+	if (bestFrame) bestFrame->lpVtbl->Release(bestFrame);
+	if (decoder) decoder->lpVtbl->Release(decoder);
+	if (factory) factory->lpVtbl->Release(factory);
+	if (comInitialized) CoUninitialize();
+
+	return result;
+}
 
 const wchar_t* szClass = L"winWindowClass";
 
